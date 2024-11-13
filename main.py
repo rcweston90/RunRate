@@ -3,12 +3,14 @@ import pandas as pd
 from utils.data_processor import DataProcessor
 from utils.visualizations import VisualizationManager
 from utils.category_manager import CategoryManager
+from utils.budget_manager import BudgetManager
 import io
 
 # Initialize managers
 data_processor = DataProcessor()
 viz_manager = VisualizationManager()
 category_manager = CategoryManager()
+budget_manager = BudgetManager()
 
 # Set page config
 st.set_page_config(
@@ -52,7 +54,7 @@ if st.session_state.df is not None:
         st.session_state.categorized = True
     
     # Create tabs for different views
-    tab1, tab2, tab3 = st.tabs(["Analysis", "Transactions", "Category Management"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Analysis", "Transactions", "Category Management", "Budget Management"])
     
     with tab1:
         # Summary metrics
@@ -85,6 +87,12 @@ if st.session_state.df is not None:
             viz_manager.create_spending_trend_line(st.session_state.df),
             use_container_width=True
         )
+        
+        # Budget progress chart
+        st.plotly_chart(
+            viz_manager.create_budget_progress_chart(st.session_state.df),
+            use_container_width=True
+        )
     
     with tab2:
         st.subheader("Transaction Details")
@@ -99,6 +107,20 @@ if st.session_state.df is not None:
         filtered_df = st.session_state.df
         if selected_category != "All":
             filtered_df = filtered_df[filtered_df['Category'] == selected_category]
+            
+            # Show budget status if available
+            budget_status = budget_manager.get_budget_status(
+                selected_category,
+                filtered_df['Amount'].sum()
+            )
+            if budget_status['has_budget']:
+                st.info(f"""
+                Budget Status for {selected_category}:
+                - Budget: ${budget_status['budget_amount']:,.2f}
+                - Spent: ${budget_status['spent']:,.2f}
+                - Remaining: ${budget_status['remaining']:,.2f}
+                - Used: {budget_status['percentage_used']:.1f}%
+                """)
         
         # Display editable dataframe
         st.dataframe(
@@ -201,6 +223,73 @@ if st.session_state.df is not None:
                     st.success(message)
                 else:
                     st.error(message)
+    
+    with tab4:
+        st.subheader("Budget Management")
+        
+        # Create two columns for budget management
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("#### Set Budget")
+            budget_category = st.selectbox(
+                "Select Category",
+                category_manager.get_all_categories(),
+                key="budget_category"
+            )
+            
+            current_budget = budget_manager.get_budget(budget_category)
+            budget_amount = st.number_input(
+                "Budget Amount",
+                min_value=0.0,
+                value=float(current_budget['amount']) if current_budget else 0.0,
+                step=10.0
+            )
+            
+            budget_period = st.selectbox(
+                "Budget Period",
+                ["monthly", "yearly"],
+                index=0 if not current_budget else ["monthly", "yearly"].index(current_budget['period'])
+            )
+            
+            if st.button("Set Budget"):
+                success, message = budget_manager.set_budget(
+                    budget_category,
+                    budget_amount,
+                    budget_period
+                )
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
+        
+        with col2:
+            st.write("#### Current Budgets")
+            budgets = budget_manager.get_all_budgets()
+            
+            if not budgets:
+                st.info("No budgets set yet")
+            else:
+                for budget in budgets:
+                    category = budget['category']
+                    amount = budget['amount']
+                    period = budget['period']
+                    
+                    st.write(f"**{category}**")
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    
+                    with col1:
+                        st.write(f"Amount: ${amount:,.2f}")
+                    with col2:
+                        st.write(f"Period: {period}")
+                    with col3:
+                        if st.button("Remove", key=f"remove_{category}"):
+                            success, message = budget_manager.remove_budget(category)
+                            if success:
+                                st.success(message)
+                                st.experimental_rerun()
+                            else:
+                                st.error(message)
 
 else:
     st.info("Please upload a file to begin analysis")
