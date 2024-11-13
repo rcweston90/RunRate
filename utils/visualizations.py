@@ -101,3 +101,52 @@ class VisualizationManager:
         )
         
         return fig
+    
+    def create_category_comparison_chart(self, df: pd.DataFrame) -> go.Figure:
+        """Create comparison bar chart for categories across files"""
+        fig = go.Figure()
+        
+        for column in df.columns:
+            fig.add_trace(go.Bar(
+                name=column,
+                x=df.index,
+                y=df[column],
+                text=df[column].round(2),
+                textposition='auto',
+            ))
+        
+        fig.update_layout(
+            title='Category-wise Spending Comparison',
+            barmode='group',
+            xaxis_title='Category',
+            yaxis_title='Amount',
+            template='seaborn',
+            showlegend=True,
+            legend_title='Files'
+        )
+        
+        return fig
+    
+    def create_trend_comparison_chart(self, dfs: List[pd.DataFrame], labels: List[str]) -> go.Figure:
+        """Create comparison line chart for spending trends across files"""
+        fig = go.Figure()
+        
+        for df, label in zip(dfs, labels):
+            daily_spending = df.groupby('Date')['Amount'].sum().reset_index()
+            fig.add_trace(go.Scatter(
+                x=daily_spending['Date'],
+                y=daily_spending['Amount'],
+                mode='lines+markers',
+                name=label
+            ))
+        
+        fig.update_layout(
+            title='Spending Trend Comparison',
+            xaxis_title='Date',
+            yaxis_title='Amount',
+            template='seaborn',
+            showlegend=True,
+            legend_title='Files'
+        )
+        
+        return fig

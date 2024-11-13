@@ -20,8 +20,8 @@ st.set_page_config(
 )
 
 # Initialize session state
-if 'df' not in st.session_state:
-    st.session_state.df = None
+if 'files_data' not in st.session_state:
+    st.session_state.files_data = {}
 
 # Title and description
 st.title("Financial Data Analysis Platform")
@@ -31,114 +31,199 @@ Supported formats: CSV, Excel, TXT (comma or tab-delimited)
 """)
 
 # File upload section
-uploaded_file = st.file_uploader(
-    "Upload your financial data file",
-    type=['csv', 'xlsx', 'xls', 'txt']
+uploaded_files = st.file_uploader(
+    "Upload your financial data files",
+    type=['csv', 'xlsx', 'xls', 'txt'],
+    accept_multiple_files=True
 )
 
-if uploaded_file is not None:
-    # Process uploaded file
-    df, message = data_processor.process_upload(uploaded_file)
-    
-    if df is not None:
-        st.session_state.df = df
-        st.success("File uploaded successfully!")
-    else:
-        st.error(message)
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        file_key = uploaded_file.name
+        if file_key not in st.session_state.files_data:
+            # Process uploaded file
+            df, message = data_processor.process_upload(uploaded_file)
+            
+            if df is not None:
+                st.session_state.files_data[file_key] = {
+                    'df': df,
+                    'categorized': False
+                }
+                st.success(f"File {file_key} uploaded successfully!")
+            else:
+                st.error(f"Error processing {file_key}: {message}")
 
 # Main analysis section
-if st.session_state.df is not None:
-    # Categorize transactions
-    if 'categorized' not in st.session_state:
-        st.session_state.df = data_processor.categorize_transactions(st.session_state.df)
-        st.session_state.categorized = True
+if st.session_state.files_data:
+    # Categorize transactions for all files
+    for file_key in st.session_state.files_data:
+        if not st.session_state.files_data[file_key]['categorized']:
+            st.session_state.files_data[file_key]['df'] = data_processor.categorize_transactions(
+                st.session_state.files_data[file_key]['df']
+            )
+            st.session_state.files_data[file_key]['categorized'] = True
     
     # Create tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs(["Analysis", "Transactions", "Category Management", "Budget Management"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Analysis", "Comparison", "Transactions", "Category Management", "Budget Management"])
     
     with tab1:
-        # Summary metrics
-        summary = data_processor.get_spending_summary(st.session_state.df)
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("Total Spent", f"${summary['total_spent']:,.2f}")
-        with col2:
-            st.metric("Number of Transactions", summary['transaction_count'])
-        with col3:
-            st.metric("Date Range", f"{summary['date_range'][0]} to {summary['date_range'][1]}")
-        
-        # Visualizations
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.plotly_chart(
-                viz_manager.create_spending_pie_chart(st.session_state.df),
-                use_container_width=True
-            )
-        
-        with col2:
-            st.plotly_chart(
-                viz_manager.create_category_bar_chart(st.session_state.df),
-                use_container_width=True
-            )
-        
-        st.plotly_chart(
-            viz_manager.create_spending_trend_line(st.session_state.df),
-            use_container_width=True
+        # File selector for individual analysis
+        selected_file = st.selectbox(
+            "Select file to analyze",
+            list(st.session_state.files_data.keys())
         )
         
-        # Budget progress chart
-        st.plotly_chart(
-            viz_manager.create_budget_progress_chart(st.session_state.df),
-            use_container_width=True
-        )
+        if selected_file:
+            df = st.session_state.files_data[selected_file]['df']
+            
+            # Summary metrics
+            summary = data_processor.get_spending_summary(df)
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Total Spent", f"${summary['total_spent']:,.2f}")
+            with col2:
+                st.metric("Number of Transactions", summary['transaction_count'])
+            with col3:
+                st.metric("Date Range", f"{summary['date_range'][0]} to {summary['date_range'][1]}")
+            
+            # Visualizations
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.plotly_chart(
+                    viz_manager.create_spending_pie_chart(df),
+                    use_container_width=True
+                )
+            
+            with col2:
+                st.plotly_chart(
+                    viz_manager.create_category_bar_chart(df),
+                    use_container_width=True
+                )
+            
+            st.plotly_chart(
+                viz_manager.create_spending_trend_line(df),
+                use_container_width=True
+            )
+            
+            st.plotly_chart(
+                viz_manager.create_budget_progress_chart(df),
+                use_container_width=True
+            )
     
     with tab2:
-        st.subheader("Transaction Details")
+        st.subheader("File Comparison")
         
-        # Category filter
-        selected_category = st.selectbox(
-            "Filter by Category",
-            ["All"] + category_manager.get_all_categories()
+        # Select files to compare
+        files_to_compare = st.multiselect(
+            "Select files to compare",
+            list(st.session_state.files_data.keys()),
+            default=list(st.session_state.files_data.keys())[:2] if len(st.session_state.files_data) >= 2 else []
         )
         
-        # Filter and display transactions
-        filtered_df = st.session_state.df
-        if selected_category != "All":
-            filtered_df = filtered_df[filtered_df['Category'] == selected_category]
+        if len(files_to_compare) >= 2:
+            # Compare total spending
+            comparison_data = []
+            for file_key in files_to_compare:
+                df = st.session_state.files_data[file_key]['df']
+                summary = data_processor.get_spending_summary(df)
+                comparison_data.append({
+                    'file': file_key,
+                    'total_spent': summary['total_spent'],
+                    'transaction_count': summary['transaction_count'],
+                    'date_range': f"{summary['date_range'][0]} to {summary['date_range'][1]}"
+                })
             
-            # Show budget status if available
-            budget_status = budget_manager.get_budget_status(
-                selected_category,
-                filtered_df['Amount'].sum()
+            # Display comparison metrics
+            st.write("#### Comparison Summary")
+            comparison_df = pd.DataFrame(comparison_data)
+            st.dataframe(comparison_df)
+            
+            # Category-wise comparison
+            st.write("#### Category-wise Comparison")
+            category_comparison = {}
+            for file_key in files_to_compare:
+                df = st.session_state.files_data[file_key]['df']
+                category_sums = df.groupby('Category')['Amount'].sum()
+                category_comparison[file_key] = category_sums
+            
+            category_comparison_df = pd.DataFrame(category_comparison)
+            category_comparison_df = category_comparison_df.fillna(0)
+            
+            # Display category comparison
+            st.plotly_chart(
+                viz_manager.create_category_comparison_chart(category_comparison_df),
+                use_container_width=True
             )
-            if budget_status['has_budget']:
-                st.info(f"""
-                Budget Status for {selected_category}:
-                - Budget: ${budget_status['budget_amount']:,.2f}
-                - Spent: ${budget_status['spent']:,.2f}
-                - Remaining: ${budget_status['remaining']:,.2f}
-                - Used: {budget_status['percentage_used']:.1f}%
-                """)
-        
-        # Display editable dataframe
-        st.dataframe(
-            filtered_df[['Date', 'Description', 'Amount', 'Category']],
-            hide_index=True
-        )
-        
-        # Export button
-        if st.button("Export Data"):
-            csv = filtered_df.to_csv(index=False)
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name="processed_transactions.csv",
-                mime="text/csv"
+            
+            # Trend comparison
+            st.write("#### Spending Trend Comparison")
+            st.plotly_chart(
+                viz_manager.create_trend_comparison_chart(
+                    [st.session_state.files_data[file_key]['df'] for file_key in files_to_compare],
+                    files_to_compare
+                ),
+                use_container_width=True
             )
+        else:
+            st.info("Please select at least 2 files to compare")
     
     with tab3:
+        st.subheader("Transaction Details")
+        
+        # File selector for transactions
+        selected_file = st.selectbox(
+            "Select file",
+            list(st.session_state.files_data.keys()),
+            key="transaction_file_selector"
+        )
+        
+        if selected_file:
+            df = st.session_state.files_data[selected_file]['df']
+            
+            # Category filter
+            selected_category = st.selectbox(
+                "Filter by Category",
+                ["All"] + category_manager.get_all_categories()
+            )
+            
+            # Filter and display transactions
+            filtered_df = df
+            if selected_category != "All":
+                filtered_df = filtered_df[filtered_df['Category'] == selected_category]
+                
+                # Show budget status if available
+                budget_status = budget_manager.get_budget_status(
+                    selected_category,
+                    filtered_df['Amount'].sum()
+                )
+                if budget_status['has_budget']:
+                    st.info(f"""
+                    Budget Status for {selected_category}:
+                    - Budget: ${budget_status['budget_amount']:,.2f}
+                    - Spent: ${budget_status['spent']:,.2f}
+                    - Remaining: ${budget_status['remaining']:,.2f}
+                    - Used: {budget_status['percentage_used']:.1f}%
+                    """)
+            
+            # Display editable dataframe
+            st.dataframe(
+                filtered_df[['Date', 'Description', 'Amount', 'Category']],
+                hide_index=True
+            )
+            
+            # Export button
+            if st.button("Export Data"):
+                csv = filtered_df.to_csv(index=False)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name=f"processed_transactions_{selected_file}.csv",
+                    mime="text/csv"
+                )
+    
+    with tab4:
         st.subheader("Category Management")
         
         # Create three columns for better organization
@@ -157,8 +242,11 @@ if st.session_state.df is not None:
                     )
                     if success:
                         st.success(message)
-                        # Recategorize transactions with new category
-                        st.session_state.df = data_processor.categorize_transactions(st.session_state.df)
+                        # Recategorize transactions for all files
+                        for file_key in st.session_state.files_data:
+                            st.session_state.files_data[file_key]['df'] = data_processor.categorize_transactions(
+                                st.session_state.files_data[file_key]['df']
+                            )
                     else:
                         st.error(message)
         
@@ -203,8 +291,11 @@ if st.session_state.df is not None:
                     )
                     if success:
                         st.success(message)
-                        # Recategorize transactions with new keyword
-                        st.session_state.df = data_processor.categorize_transactions(st.session_state.df)
+                        # Recategorize transactions for all files
+                        for file_key in st.session_state.files_data:
+                            st.session_state.files_data[file_key]['df'] = data_processor.categorize_transactions(
+                                st.session_state.files_data[file_key]['df']
+                            )
                     else:
                         st.error(message)
             
@@ -224,7 +315,7 @@ if st.session_state.df is not None:
                 else:
                     st.error(message)
     
-    with tab4:
+    with tab5:
         st.subheader("Budget Management")
         
         # Create two columns for budget management
@@ -292,4 +383,4 @@ if st.session_state.df is not None:
                                 st.error(message)
 
 else:
-    st.info("Please upload a file to begin analysis")
+    st.info("Please upload files to begin analysis")

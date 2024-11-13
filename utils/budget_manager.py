@@ -13,21 +13,28 @@ class BudgetManager:
         try:
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor() as cur:
-                    # Drop existing table if it exists
-                    cur.execute("DROP TABLE IF EXISTS budgets CASCADE;")
-                    conn.commit()
-                    
-                    # Create table with new schema
+                    # Check if table exists
                     cur.execute("""
-                        CREATE TABLE budgets (
-                            id SERIAL PRIMARY KEY,
-                            category VARCHAR(50) UNIQUE NOT NULL,
-                            amount DECIMAL(10,2) NOT NULL,
-                            period VARCHAR(10) NOT NULL,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_schema = 'public'
+                            AND table_name = 'budgets'
                         );
                     """)
-                    conn.commit()
+                    table_exists = cur.fetchone()[0]
+                    
+                    if not table_exists:
+                        # Create table with new schema
+                        cur.execute("""
+                            CREATE TABLE budgets (
+                                id SERIAL PRIMARY KEY,
+                                category VARCHAR(50) UNIQUE NOT NULL,
+                                amount DECIMAL(10,2) NOT NULL,
+                                period VARCHAR(10) NOT NULL,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                        """)
+                        conn.commit()
         except Exception as e:
             print(f"Database initialization error: {str(e)}")
     
