@@ -18,8 +18,18 @@ class DataProcessor:
                 df = pd.read_csv(uploaded_file)
             elif uploaded_file.name.endswith(('.xls', '.xlsx')):
                 df = pd.read_excel(uploaded_file)
+            elif uploaded_file.name.endswith('.txt'):
+                # Try reading as CSV first (comma-separated)
+                try:
+                    df = pd.read_csv(uploaded_file, sep=',')
+                except:
+                    # If comma-separated fails, try tab-separated
+                    try:
+                        df = pd.read_csv(uploaded_file, sep='\t')
+                    except Exception as e:
+                        return None, "Error processing TXT file: File must be comma or tab-separated"
             else:
-                return None, "Unsupported file format. Please upload CSV or Excel file."
+                return None, "Unsupported file format. Please upload CSV, Excel, or TXT file."
             
             # Ensure required columns exist
             required_columns = ['Date', 'Description', 'Amount']

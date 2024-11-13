@@ -25,13 +25,13 @@ if 'df' not in st.session_state:
 st.title("Financial Data Analysis Platform")
 st.markdown("""
 Upload your financial data to analyze spending patterns and manage categories.
-Supported formats: CSV, Excel
+Supported formats: CSV, Excel, TXT (comma or tab-delimited)
 """)
 
 # File upload section
 uploaded_file = st.file_uploader(
     "Upload your financial data file",
-    type=['csv', 'xlsx', 'xls']
+    type=['csv', 'xlsx', 'xls', 'txt']
 )
 
 if uploaded_file is not None:
