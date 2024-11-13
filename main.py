@@ -119,35 +119,88 @@ if st.session_state.df is not None:
     with tab3:
         st.subheader("Category Management")
         
-        col1, col2 = st.columns(2)
+        # Create three columns for better organization
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.write("Add New Category")
+            st.write("#### Add New Category")
             new_category = st.text_input("Category Name")
             new_keywords = st.text_input("Keywords (comma-separated)")
             
             if st.button("Add Category"):
                 if new_category and new_keywords:
-                    category_manager.add_category(
+                    success, message = category_manager.add_category(
                         new_category,
-                        [k.strip() for k in new_keywords.split(",")]
+                        [k.strip().lower() for k in new_keywords.split(",")]
                     )
-                    st.success(f"Added category: {new_category}")
+                    if success:
+                        st.success(message)
+                        # Recategorize transactions with new category
+                        st.session_state.df = data_processor.categorize_transactions(st.session_state.df)
+                    else:
+                        st.error(message)
         
         with col2:
-            st.write("Add Keywords to Existing Category")
+            st.write("#### Manage Existing Categories")
             existing_category = st.selectbox(
                 "Select Category",
                 category_manager.get_all_categories()
             )
+            
+            # Show if it's a default category
+            is_default = category_manager.is_default_category(existing_category)
+            st.info("Default Category" if is_default else "Custom Category")
+            
+            # Show existing keywords
+            st.write("Current Keywords:")
+            keywords = category_manager.get_category_keywords(existing_category)
+            for keyword in keywords:
+                st.text(f"• {keyword}")
+            
+            # Remove category button (only for custom categories)
+            if not is_default:
+                if st.button("Remove Category"):
+                    success, message = category_manager.remove_category(existing_category)
+                    if success:
+                        st.success(message)
+                        # Reset selection to avoid errors
+                        st.experimental_rerun()
+                    else:
+                        st.error(message)
+        
+        with col3:
+            st.write("#### Manage Keywords")
+            # Add keyword to existing category
             new_keyword = st.text_input("New Keyword")
             
             if st.button("Add Keyword"):
                 if new_keyword:
-                    if category_manager.add_keyword(existing_category, new_keyword.strip()):
-                        st.success(f"Added keyword to {existing_category}")
+                    success, message = category_manager.add_keyword(
+                        existing_category,
+                        new_keyword.strip()
+                    )
+                    if success:
+                        st.success(message)
+                        # Recategorize transactions with new keyword
+                        st.session_state.df = data_processor.categorize_transactions(st.session_state.df)
                     else:
-                        st.error("Failed to add keyword")
+                        st.error(message)
+            
+            # Remove keyword
+            keyword_to_remove = st.selectbox(
+                "Select Keyword to Remove",
+                category_manager.get_category_keywords(existing_category)
+            )
+            
+            if st.button("Remove Keyword"):
+                success, message = category_manager.remove_keyword(
+                    existing_category,
+                    keyword_to_remove
+                )
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
 
 else:
     st.info("Please upload a file to begin analysis")
