@@ -1,0 +1,12 @@
+{
+    "categories": {
+        "Food & Dining": ["restaurant", "grocery", "coffee", "takeout"],
+        "Transportation": ["uber", "lyft", "taxi", "gas", "parking", "transit"],
+        "Shopping": ["amazon", "walmart", "target", "clothing"],
+        "Bills & Utilities": ["electricity", "water", "internet", "phone"],
+        "Entertainment": ["movies", "music", "streaming", "games"],
+        "Healthcare": ["medical", "pharmacy", "doctor", "insurance"],
+        "Travel": ["hotel", "flight", "airbnb", "rental car"],
+        "Other": ["misc", "unknown"]
+    }
+}
